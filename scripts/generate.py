@@ -1,4 +1,4 @@
-"""Placeholder: autoregressive character generation in a later stage."""
+"""后续阶段占位：自回归字符生成。"""
 
 if __name__ == "__main__":
     print("尚未实现：等待基础 GPT 模块完成后再学习自回归生成。")

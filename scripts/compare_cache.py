@@ -1,4 +1,4 @@
-"""Placeholder: cached versus uncached generation in the final stage."""
+"""最后阶段占位：比较带缓存与不带缓存的生成结果。"""
 
 if __name__ == "__main__":
     print("尚未实现：KV Cache 留待最后阶段。")

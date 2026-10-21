@@ -1,1 +1,1 @@
-"""Runnable learning scripts; model-related entry points are placeholders."""
+"""可运行的教学脚本；尚未学习的模型入口保持占位。"""

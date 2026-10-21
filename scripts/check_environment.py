@@ -1,4 +1,4 @@
-"""Validate the learning environment with a tiny CPU autograd calculation."""
+"""使用微型 CPU 自动求导计算验证学习环境。"""
 
 import json
 import platform

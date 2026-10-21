@@ -1,4 +1,4 @@
-"""Placeholder: short, explicitly scoped CPU training in a later stage."""
+"""后续阶段占位：范围明确的微型 CPU 短训练。"""
 
 if __name__ == "__main__":
     print("尚未实现：第 0 阶段不开展训练。")

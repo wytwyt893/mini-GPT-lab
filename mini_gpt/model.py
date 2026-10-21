@@ -1,1 +1,1 @@
-"""Future stage: learned embeddings, decoder stack, and language-model head."""
+"""后续阶段占位：学习式嵌入、解码器堆叠与语言模型输出头。"""

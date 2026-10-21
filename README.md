@@ -2,7 +2,9 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：仅完成第 0 阶段工程初始化。** Tokenizer、Attention、FFN、Decoder Block、GPT 与生成脚本均为占位，尚未实现模型，也未开展训练或 KV Cache 开发。
+**当前状态：第 0 阶段已完成，第 1 阶段正在练习。** Tokenizer 保留接口和中文 TODO，由学习者逐步填写；尚未完成 Tokenizer 或模型实现，也未开展训练或 KV Cache 开发。
+
+学习方式：导师讲一个概念，学习者写一小段，导师检查并解释；不一次性给出完整实现。请先看 [阶段计划](docs/learning_plan.md) 和 [第 1 课](docs/01_tokenizer.md)，当前只填写 `CharTokenizer.__init__`。
 
 ## 目标与边界
 
@@ -35,12 +37,15 @@ PowerShell 下无需激活环境，直接运行项目解释器可避免执行策
 
 ```powershell
 cd C:\Users\86185\Desktop\agent\mini-gpt-lab
+$env:PYTHONUTF8 = '1'
 .\.venv\Scripts\python.exe -m scripts.check_environment
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
 关闭 pytest 外部插件自动发现是为了避免继承全局环境中与本项目无关的插件；本项目测试只依赖 pytest 本身。`check_environment` 报告版本、解释器位置和设备，并打印实际 Shape：`[2, 3] @ [3, 4] → [2, 4]`，同时验证 CPU 反向传播。初始化验证结果：CPU 前向/反向均通过，pytest **1 passed**。
+
+`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前练习骨架的测试结果是 **1 passed, 1 skipped**：通过项是环境验证，跳过项是等待学习者填写的 Tokenizer 验收样例，不代表 Tokenizer 已通过测试。
 
 本次 Codex 沙箱内的 Anaconda Python 曾以 DLL 初始化错误 `0xC0000142` 退出，Git 克隆也曾遇到 TLS 凭据错误；已通过获准的沙箱外执行完成检查与重试。这属于本次执行环境限制；普通本地终端可按上述命令验证。
 
@@ -71,7 +76,7 @@ mini-gpt-lab/
 ├── reference/minGPT/          # 官方只读参考，包含自身 .git
 ├── mini_gpt/
 │   ├── __init__.py
-│   ├── tokenizer.py          # 第 1 阶段，当前占位
+│   ├── tokenizer.py          # 第 1 阶段：接口和中文 TODO
 │   ├── attention.py          # 当前占位
 │   ├── blocks.py             # 当前占位
 │   └── model.py              # 当前占位
@@ -83,11 +88,14 @@ mini-gpt-lab/
 │   ├── generate.py           # 当前占位
 │   └── compare_cache.py      # 当前占位
 ├── tests/
-│   └── test_environment.py   # CPU 前向/反向 smoke test
+│   ├── test_environment.py   # CPU 前向/反向 smoke test
+│   └── test_tokenizer.py     # 练习 1 验收样例，完成前暂时跳过
 ├── data/
 │   └── .gitkeep
 ├── docs/
-│   └── learning_log.md
+│   ├── learning_log.md
+│   ├── learning_plan.md
+│   └── 01_tokenizer.md
 ├── AGENTS.md
 ├── README.md
 ├── pyproject.toml
@@ -112,4 +120,4 @@ mini-gpt-lab/
 
 建议第 1 天学习 Tokenizer 至 Decoder Block，第 2 天完成模型组合、短训练、生成和最后的 KV Cache；时间分配服从实际理解程度。每一行单独讲解、实现、打印关键 Shape、测试并记录，不一次性写完。耗时较长训练须先得到确认。
 
-当前下一步只建议学习字符级 Tokenizer，需等待用户安排；学习记录见 [docs/learning_log.md](docs/learning_log.md)。
+当前只练习 Tokenizer 的两张映射表，等待学习者完成并讨论后才继续下一个小步骤；学习记录见 [docs/learning_log.md](docs/learning_log.md)。

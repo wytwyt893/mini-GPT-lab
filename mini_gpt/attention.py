@@ -1,1 +1,1 @@
-"""Future stage: handwritten multi-head causal self-attention."""
+"""后续阶段占位：手写多头因果自注意力。"""

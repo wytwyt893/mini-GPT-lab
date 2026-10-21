@@ -1,1 +1,1 @@
-"""Future stage: GELU FFN and Pre-LN decoder block."""
+"""后续阶段占位：GELU 前馈网络与 Pre-LN 解码器块。"""

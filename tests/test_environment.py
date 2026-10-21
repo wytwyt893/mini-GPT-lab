@@ -1,4 +1,4 @@
-"""Stage 0 smoke test; no GPT module has been implemented yet."""
+"""第 0 阶段环境冒烟测试；仅验证 CPU 计算及自动求导。"""
 
 import torch
 

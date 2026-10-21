@@ -1,1 +1,1 @@
-"""A minimal, independently implemented GPT learning project."""
+"""独立实现最小 GPT 的教学项目。"""

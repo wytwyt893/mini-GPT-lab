@@ -1,7 +1,7 @@
-# Local reference checkout: read-only learning material, not project source.
+# 本地只读参考仓库，不属于本项目源码。
 /reference/
 
-# Virtual environments and Python caches.
+# 虚拟环境与 Python 缓存。
 /.venv/
 /venv/
 __pycache__/
@@ -16,7 +16,7 @@ __pycache__/
 /build/
 /dist/
 
-# Weights, training state, logs, and generated artifacts.
+# 权重、训练状态、日志和运行生成文件。
 *.pt
 *.pth
 *.ckpt
@@ -33,7 +33,7 @@ __pycache__/
 !/data/.gitkeep
 !/data/README.md
 
-# Local credentials and OS/editor files.
+# 本地凭据与系统、编辑器文件。
 .env
 .env.*
 !.env.example
