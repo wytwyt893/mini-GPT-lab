@@ -5,6 +5,7 @@ import argparse
 import torch
 
 from mini_gpt.attention import CausalSelfAttention
+from mini_gpt.blocks import FeedForward
 from mini_gpt.embeddings import TokenPositionEmbedding
 from mini_gpt.tokenizer import CharTokenizer
 
@@ -180,10 +181,62 @@ def trace_multi_head_attention() -> None:
         print("核对通过：实际多头 forward 与分步计算一致。")
 
 
+def trace_ffn() -> None:
+    """用两维小输入展示升维、非线性激活、降维与逐位置独立计算。"""
+    layer = FeedForward(n_embd=2)
+    x = torch.tensor([[[-1., 2.], [0., 1.], [1., -2.]]], device="cpu")
+    print("\nFFN 数据流：B=1、T=3、C=2，中间维度为 8。")
+    print("使用固定演示权重和零偏置，输入模拟 Attention 输出；实际类仍使用默认初始化。")
+
+    with torch.no_grad():
+        layer.up_proj.weight.copy_(torch.tensor([
+            [1., 0.], [0., 1.], [-1., 0.], [0., -1.],
+            [1., 1.], [1., -1.], [-1., 1.], [0., 0.],
+        ]))
+        layer.up_proj.bias.zero_()
+        layer.down_proj.weight.copy_(torch.tensor([
+            [1., 0., 0., 0., 0.5, 0., 0., 0.],
+            [0., 1., 0., 0., 0., 0.5, 0., 0.],
+        ]))
+        layer.down_proj.bias.zero_()
+
+        expanded = layer.up_proj(x)
+        activated = layer.act(expanded)
+        restored = layer.down_proj(activated)
+        output = layer(x)
+        for name, value in (
+            ("输入 X [B,T,C]", x),
+            ("升维权重 [4C,C]", layer.up_proj.weight),
+            ("升维结果 [B,T,4C]", expanded),
+            ("GELU 激活结果 [B,T,4C]", activated),
+            ("降维权重 [C,4C]", layer.down_proj.weight),
+            ("降维结果 [B,T,C]", restored),
+            ("实际 forward 输出 [B,T,C]", output),
+        ):
+            show_tensor(name, value)
+        torch.testing.assert_close(output, restored)
+        print("\n核对通过：实际 forward 与分步计算一致。GELU 改变数值，保留 Shape。")
+
+        # 只改变中间位置，不改变前后两个位置的输入。
+        changed_x = x.clone()
+        changed_x[:, 1] += 10.0
+        changed_output = layer(changed_x)
+        torch.testing.assert_close(output[:, [0, 2]], changed_output[:, [0, 2]])
+        difference = (output[:, [0, 2]] - changed_output[:, [0, 2]]).abs().max().item()
+        show_tensor("修改位置 1 后的输出 [B,T,C]", changed_output)
+        print(f"逐位置独立性验证通过：位置 0 和 2 的最大输出差值 = {difference}")
+        print("这验证了 FFN 本身不在位置之间交换信息。")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="观察已实现模块的数据流")
-    parser.add_argument("--multi-head-only", action="store_true", help="只打印双头数据流")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--multi-head-only", action="store_true", help="只打印双头数据流")
+    mode.add_argument("--ffn-only", action="store_true", help="只打印 FFN 数据流")
     args = parser.parse_args()
+    if args.ffn_only:
+        trace_ffn()
+        return
     if args.multi_head_only:
         trace_multi_head_attention()
         return
@@ -209,6 +262,7 @@ def main() -> None:
     embedded = trace_embeddings(x, tokenizer.vocab_size)
     trace_single_head_attention(embedded)
     trace_multi_head_attention()
+    trace_ffn()
 
 
 if __name__ == "__main__":

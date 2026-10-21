@@ -46,6 +46,25 @@ class CausalSelfAttention(nn.Module):
         v = self.v_proj(x)
 
         # 拆头：分别将 q、k、v 从 [B,T,C] 变为 [B,H,T,D]。
+        """
+        参数：
+            B: 批量大小
+            T: 序列长度
+            C: 隐藏维度
+            H: 注意力头数
+            D: 每个头的维度，D = C / H
+        举例：
+        假设输入 x 的形状为 [2, 3, 4]，即 B=2, T=3, C=4。
+        假设有两个头 H=2，那么每个头的维度 D = C / H = 4 / 2 = 2。
+        则 q、k、v 先被 reshape 为 [2, 3, 2, 2]，即 [B,T,H,D]。
+        其中：
+        - 第一个维度 2 表示批量大小 B=2
+        - 第二个维度 3 表示序列长度 T=3
+        - 第三个维度 2 表示注意力头数 H=2
+        - 第四个维度 2 表示每个头的维度 D=2
+        之后再交换位置维和头维，得到 [2,2,3,2]，即 [B,H,T,D]。
+        交换位置维和头维是为了方便后续计算注意力分数和加权求和。
+        """
         # 先 reshape 为 [B,T,H,D]，再交换位置维和头维；H*D=C。
         q = q.reshape(B, T, self.n_head, self.head_dim).transpose(1, 2)
         k = k.reshape(B, T, self.n_head, self.head_dim).transpose(1, 2)
@@ -104,5 +123,12 @@ class CausalSelfAttention(nn.Module):
 
         # 合并：多头时 context 为 [B,H,T,D]。
         # 先交换回 [B,T,H,D]，再 reshape 为 [B,T,C]，最后进行输出投影。
+        """
+        举例：
+        假设有两个头，每个头的维度为 2，输入序列长度为 3。
+        context 的形状为 [B,H,T,D] = [B,2,3,2]。
+        交换后为 [B,T,H,D] = [B,3,2,2]。
+        reshape 后为 [B,T,C] = [B,3,4]，因为 C = H * D = 2 * 2 = 4。
+        """
         context = context.transpose(1, 2).reshape(B, T, C)
         return self.out_proj(context)
