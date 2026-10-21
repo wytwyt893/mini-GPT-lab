@@ -1,0 +1,42 @@
+# Local reference checkout: read-only learning material, not project source.
+/reference/
+
+# Virtual environments and Python caches.
+/.venv/
+/venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+/.cache/
+/.coverage
+/htmlcov/
+/build/
+/dist/
+
+# Weights, training state, logs, and generated artifacts.
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.log
+/logs/
+/runs/
+/outputs/
+/artifacts/
+/checkpoints/
+/wandb/
+/data/*
+!/data/.gitkeep
+!/data/README.md
+
+# Local credentials and OS/editor files.
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+/._*

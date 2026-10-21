@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mini-gpt-lab"
+version = "0.0.0"
+description = "Step-by-step, CPU-first decoder-only GPT learning lab"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.2,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4,<10"]
+
+[tool.setuptools.packages.find]
+include = ["mini_gpt*", "scripts*"]
+exclude = ["reference*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
