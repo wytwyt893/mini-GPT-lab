@@ -20,6 +20,7 @@ class TokenPositionEmbedding(nn.Module):
         self.block_size = block_size
 
         # 建立字符编号嵌入表 self.token_embedding，形状为 [V, C]。
+        # nn.Embedding 是 PyTorch 提供的嵌入层，用于将整数编号映射为向量。
         self.token_embedding = nn.Embedding(vocab_size, n_embd)
         # 建立位置嵌入表 self.position_embedding，形状为 [block_size, C]。
         self.position_embedding = nn.Embedding(block_size, n_embd)
