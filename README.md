@@ -2,7 +2,7 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：已完成 Tokenizer、Embedding、手写多头因果自注意力、FFN、Pre-LN Decoder Block、最小 GPT 与 LM Head、移位标签、next-token loss 和无缓存贪心生成。** 当前共 72 项测试通过；CPU 训练和 KV Cache 尚未开始。
+**当前状态：已完成 Tokenizer、Embedding、手写多头因果自注意力、FFN、Pre-LN Decoder Block、最小 GPT、损失、无缓存生成和单步 CPU 参数更新。** 当前共 74 项测试通过；多轮训练循环待学习者填写，KV Cache 尚未开始。
 
 学习方式：导师在聊天中解释概念和小段代码，由学习者填写并验证；可在同一轮推进几个相关小节，不一次性替学习者实现完整模块。已有教学 Markdown 保留为历史材料，后续指导在聊天中进行，阶段结果简要记入学习记录。
 
@@ -45,7 +45,7 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 
 关闭 pytest 外部插件自动发现是为了避免继承全局环境中与本项目无关的插件；本项目测试只依赖 pytest 本身。`check_environment` 报告版本、解释器位置和设备，并打印实际 Shape：`[2, 3] @ [3, 4] → [2, 4]`，同时验证 CPU 反向传播。初始化验证结果：CPU 前向/反向均通过，pytest **1 passed**。
 
-`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **72 passed**，覆盖环境、Tokenizer、Embedding、单头及多头 Attention、FFN、Decoder Block、最小 GPT 前向、移位标签、损失和无缓存生成。
+`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **74 passed**，覆盖环境、Tokenizer、Embedding、Attention、FFN、Decoder Block、GPT 前向、标签、损失、生成和单步训练；尚未验证待填写的多轮循环。
 
 只观察双头注意力的数据流，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --multi-head-only`。脚本中的固定小表仅用于演示，并与实际模块输出核对。
 
@@ -58,6 +58,8 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 查看移位标签与损失，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --loss-only`，显示完整编号、输入/标签、原始 logits、展平 Shape、正确字符概率、逐位置 loss 和平均 loss。概率仅用于展示，损失函数直接接收原始 logits；模型参数不更新。
 
 查看未训练模型的字符生成，可运行 `.\.venv\Scripts\python.exe -m scripts.generate --prompt "cab a" --max-new-tokens 6 --trace`。此命令记录每轮真正送入模型的上下文、下一字符概率与选中编号；固定随机种子 42，输出 `"cab abcabcb"`，不更新参数。
+
+单步参数更新可运行 `.\.venv\Scripts\python.exe -m scripts.train_tiny --steps 1`，同批次 loss 从 `1.335166` 降到 `1.143924`。`--steps 100` 是下一小节的练习入口，需先填好 `train_loop`；其四个固定窗口组成 `[4,8]` 输入与标签，并预留同一模型训练前后的生成对比。当前循环显式抛出 `NotImplementedError`，不作为训练完成结果。
 
 本次 Codex 沙箱内的 Anaconda Python 曾以 DLL 初始化错误 `0xC0000142` 退出，Git 克隆也曾遇到 TLS 凭据错误；已通过获准的沙箱外执行完成检查与重试。这属于本次执行环境限制；普通本地终端可按上述命令验证。
 
@@ -98,7 +100,7 @@ mini-gpt-lab/
 │   ├── __init__.py
 │   ├── check_environment.py  # 第 0 阶段环境验证
 │   ├── trace_forward.py      # 已实现模块的真实数值与 Shape 追踪
-│   ├── train_tiny.py         # 当前占位
+│   ├── train_tiny.py         # 已实现单步训练，多轮循环为练习骨架
 │   ├── generate.py           # 未训练模型生成入口与逐轮追踪
 │   └── compare_cache.py      # 当前占位
 ├── tests/
@@ -110,7 +112,8 @@ mini-gpt-lab/
 │   ├── test_decoder_block.py # Pre-LN 数值、残差、因果性、批量与梯度测试
 │   ├── test_model.py         # 词表分数、输出头数值、堆叠因果性、长度与梯度测试
 │   ├── test_losses.py        # 移位、独立损失数值、非连续张量、极端分数与梯度测试
-│   └── test_generate.py      # 生成回填、窗口裁剪、批量、边界与真实生成测试
+│   ├── test_generate.py      # 生成回填、窗口裁剪、批量、边界与真实生成测试
+│   └── test_training.py      # 单步更新、返回旧 loss 与清理历史梯度测试
 ├── data/
 │   └── .gitkeep
 ├── docs/
@@ -141,4 +144,4 @@ mini-gpt-lab/
 
 建议第 1 天学习 Tokenizer 至 Decoder Block，第 2 天完成模型组合、短训练、生成和最后的 KV Cache；时间分配服从实际理解程度。每一行单独讲解、实现、打印关键 Shape、测试并记录，不一次性写完。耗时较长训练须先得到确认。
 
-当前完成课程第 8 章的 8.1 无缓存生成，字符输入到字符输出已贯通；先验证未训练模型的生成流程，再学习 8.2 微型 CPU 训练。等待学习者确认理解后继续，KV Cache 留到最后。学习记录见 [docs/learning_log.md](docs/learning_log.md)。
+当前完成课程 8.1 无缓存生成与 8.2.1 单步训练；8.2.2 多轮训练循环由学习者继续填写，完成后再验证训练前后的生成变化。KV Cache 留到最后。学习记录见 [docs/learning_log.md](docs/learning_log.md)。
