@@ -5,7 +5,7 @@ import argparse
 import torch
 
 from mini_gpt.attention import CausalSelfAttention
-from mini_gpt.blocks import FeedForward
+from mini_gpt.blocks import DecoderBlock, FeedForward
 from mini_gpt.embeddings import TokenPositionEmbedding
 from mini_gpt.tokenizer import CharTokenizer
 
@@ -228,12 +228,75 @@ def trace_ffn() -> None:
         print("这验证了 FFN 本身不在位置之间交换信息。")
 
 
+def trace_decoder_block() -> None:
+    """只查看当前 __init__ 已创建的模块及其参数形状。"""
+    block = DecoderBlock(n_embd=4, n_head=2).to("cpu")
+    print("\nDecoderBlock.__init__ 构造结果：C=4、H=2。")
+    print("以下按创建顺序展示四个子模块及其实际参数形状。")
+
+    for index, (name, module) in enumerate(block.named_children(), start=1):
+        print(f"\n{index}. self.{name}：")
+        print(module)
+        for parameter_name, parameter in module.named_parameters():
+            print(f"  {parameter_name}：shape={tuple(parameter.shape)}, device={parameter.device}")
+
+
+def trace_decoder_block_forward() -> None:
+    """记录已实现的 forward 实际经过的子模块输入输出。"""
+    torch.manual_seed(42)
+    block = DecoderBlock(n_embd=4, n_head=2).to("cpu").eval()
+    x = torch.tensor([[[1., 2., 3., 4.], [2., 0., 1., -1.], [-1., 1., 0., 2.]]],
+                     device="cpu")
+    print("\nDecoderBlock.forward 实际数据流：B=1、T=3、C=4、H=2。")
+    print("输入为教学小张量；固定随机种子 42，权重使用类的默认初始化。")
+    values = {}
+
+    def record(name):
+        # 只记录真实调用，不在追踪脚本中另行串联一份前向计算。
+        def hook(module, inputs, output):
+            values[name] = (inputs[0].detach().clone(), output.detach().clone())
+        return hook
+
+    handles = [module.register_forward_hook(record(name))
+               for name, module in block.named_children()]
+    try:
+        with torch.no_grad():
+            output = block(x)
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    # ln_2 实际收到的输入就是学习者在 forward 中算出的第一次残差 h。
+    h = values["ln_2"][0]
+    for name, value in (
+        ("1. 原始输入 X [B,T,C]", x),
+        ("2. LN1(X) [B,T,C]", values["ln_1"][1]),
+        ("3. Attention 更新量 [B,T,C]", values["attn"][1]),
+        ("4. 第一次残差 h [B,T,C]", h),
+        ("5. LN2(h) [B,T,C]", values["ln_2"][1]),
+        ("6. FFN 更新量 [B,T,C]", values["ffn"][1]),
+        ("7. 完整 Block 实际输出 Y [B,T,C]", output),
+    ):
+        show_tensor(name, value)
+    torch.testing.assert_close(h, x + values["attn"][1])
+    torch.testing.assert_close(output, h + values["ffn"][1])
+    print("\n核对通过：实际 forward 中，h = X + Attention 更新量，Y = h + FFN 更新量。")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="观察已实现模块的数据流")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--multi-head-only", action="store_true", help="只打印双头数据流")
     mode.add_argument("--ffn-only", action="store_true", help="只打印 FFN 数据流")
+    mode.add_argument("--block-only", action="store_true", help="只查看 DecoderBlock 初始化的模块与参数形状")
+    mode.add_argument("--block-forward-only", action="store_true", help="只追踪已实现 DecoderBlock 的实际前向数据流")
     args = parser.parse_args()
+    if args.block_forward_only:
+        trace_decoder_block_forward()
+        return
+    if args.block_only:
+        trace_decoder_block()
+        return
     if args.ffn_only:
         trace_ffn()
         return

@@ -2,7 +2,7 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：工程初始化、字符级 Tokenizer、Embedding、手写多头因果自注意力和 FFN 已完成。** 当前共 38 项测试通过；Decoder Block、完整 GPT、训练生成和 KV Cache 尚未开始。
+**当前状态：工程初始化、字符级 Tokenizer、Embedding、手写多头因果自注意力、FFN 和 Pre-LN Decoder Block 已完成。** 当前共 45 项测试通过；完整 GPT、训练生成和 KV Cache 尚未开始。
 
 学习方式：导师在聊天中解释概念和小段代码，由学习者填写并验证；可在同一轮推进几个相关小节，不一次性替学习者实现完整模块。已有教学 Markdown 保留为历史材料，后续指导在聊天中进行，阶段结果简要记入学习记录。
 
@@ -45,11 +45,13 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 
 关闭 pytest 外部插件自动发现是为了避免继承全局环境中与本项目无关的插件；本项目测试只依赖 pytest 本身。`check_environment` 报告版本、解释器位置和设备，并打印实际 Shape：`[2, 3] @ [3, 4] → [2, 4]`，同时验证 CPU 反向传播。初始化验证结果：CPU 前向/反向均通过，pytest **1 passed**。
 
-`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **38 passed**，覆盖环境、Tokenizer、Embedding、单头及多头 Attention 和 FFN。
+`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **45 passed**，覆盖环境、Tokenizer、Embedding、单头及多头 Attention、FFN 和 Decoder Block。
 
 只观察双头注意力的数据流，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --multi-head-only`。脚本中的固定小表仅用于演示，并与实际模块输出核对。
 
 只观察 FFN，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --ffn-only`，查看升维、GELU、降维及逐位置独立性验证。
+
+只查看 Decoder Block 的构造结果，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --block-only`。查看已实现 `forward` 的真实中间值，使用 `--block-forward-only`；此模式记录实际子模块调用，核对两次残差，不另行模拟未实现的计算。
 
 本次 Codex 沙箱内的 Anaconda Python 曾以 DLL 初始化错误 `0xC0000142` 退出，Git 克隆也曾遇到 TLS 凭据错误；已通过获准的沙箱外执行完成检查与重试。这属于本次执行环境限制；普通本地终端可按上述命令验证。
 
@@ -83,7 +85,7 @@ mini-gpt-lab/
 │   ├── tokenizer.py          # 已实现字符级编码与解码
 │   ├── embeddings.py         # 已实现字符嵌入与学习式位置嵌入
 │   ├── attention.py          # 已实现多头因果自注意力
-│   ├── blocks.py             # 已实现 FFN，Decoder Block 待实现
+│   ├── blocks.py             # 已实现 FFN 和 Pre-LN Decoder Block
 │   └── model.py              # 当前占位
 ├── scripts/
 │   ├── __init__.py
@@ -97,7 +99,8 @@ mini-gpt-lab/
 │   ├── test_tokenizer.py     # 字符级 Tokenizer 测试
 │   ├── test_embeddings.py    # 嵌入层数值、边界与梯度测试
 │   ├── test_attention.py     # 单头及多头数值、因果性、批量与梯度测试
-│   └── test_ffn.py           # 非线性数值、逐位置独立性、参数共享与梯度测试
+│   ├── test_ffn.py           # 非线性数值、逐位置独立性、参数共享与梯度测试
+│   └── test_decoder_block.py # Pre-LN 数值、残差、因果性、批量与梯度测试
 ├── data/
 │   └── .gitkeep
 ├── docs/
@@ -128,4 +131,4 @@ mini-gpt-lab/
 
 建议第 1 天学习 Tokenizer 至 Decoder Block，第 2 天完成模型组合、短训练、生成和最后的 KV Cache；时间分配服从实际理解程度。每一行单独讲解、实现、打印关键 Shape、测试并记录，不一次性写完。耗时较长训练须先得到确认。
 
-当前完成课程第 5 章 FFN 的实现与验证，等待学习者确认理解后进入第 6 章 Decoder Block；学习记录见 [docs/learning_log.md](docs/learning_log.md)。
+当前完成课程第 6 章 Decoder Block 的实现与验证，等待学习者确认理解后进入第 7 章最小 GPT 与 LM Head；学习记录见 [docs/learning_log.md](docs/learning_log.md)。

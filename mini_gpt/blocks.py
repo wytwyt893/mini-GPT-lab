@@ -1,7 +1,9 @@
-"""第 5 章练习：逐位置前馈网络；后续在此组合 Pre-LN 解码器块。"""
+"""逐位置前馈网络与第 6 章 Pre-LN 解码器块练习。"""
 
 import torch
 from torch import nn
+
+from mini_gpt.attention import CausalSelfAttention
 
 
 class FeedForward(nn.Module):
@@ -32,3 +34,38 @@ class FeedForward(nn.Module):
         x = self.act(x)
         x = self.down_proj(x)
         return x
+
+
+class DecoderBlock(nn.Module):
+    """组合归一化、因果注意力、FFN 和残差；输入输出均为 [B,T,C]。"""
+
+    def __init__(self, n_embd: int, n_head: int) -> None:
+        super().__init__()
+        # 建立第一次归一化 self.ln_1。
+        self.ln_1 = nn.LayerNorm(n_embd)
+
+        # 建立注意力模块 self.attn，复用已经完成的类。
+        self.attn = CausalSelfAttention(n_embd, n_head)
+
+        # 建立第二次归一化 self.ln_2，与第一次使用独立参数。
+        self.ln_2 = nn.LayerNorm(n_embd)
+
+        # 建立前馈模块 self.ffn，复用上面的 FeedForward。
+        self.ffn = FeedForward(n_embd)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """使用 Pre-LN：先归一化，再计算子层，最后加回原来的表示。"""
+        # 归一化后送入 Attention，计算上下文更新量。
+        attn_input = self.ln_1(x)
+        attn_update = self.attn(attn_input)
+
+        # 第一次残差：加回原始输入。
+        h = x + attn_update
+
+        # 对 h 归一化，再计算 FFN 更新量。
+        ffn_input = self.ln_2(h)
+        ffn_update = self.ffn(ffn_input)
+
+        # 第二次残差：加回第一次更新后的 h。
+        y = h + ffn_update
+        return y
