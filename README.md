@@ -2,7 +2,7 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：已完成 Tokenizer、Embedding、手写多头因果自注意力、FFN、Pre-LN Decoder Block，以及最小 GPT 与 LM Head 的完整前向。** 当前共 55 项测试通过；移位标签与训练损失待学习，训练生成和 KV Cache 尚未开始。
+**当前状态：已完成 Tokenizer、Embedding、手写多头因果自注意力、FFN、Pre-LN Decoder Block、最小 GPT 与 LM Head、移位标签和 next-token loss。** 当前共 64 项测试通过；训练生成和 KV Cache 尚未开始。
 
 学习方式：导师在聊天中解释概念和小段代码，由学习者填写并验证；可在同一轮推进几个相关小节，不一次性替学习者实现完整模块。已有教学 Markdown 保留为历史材料，后续指导在聊天中进行，阶段结果简要记入学习记录。
 
@@ -45,7 +45,7 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 
 关闭 pytest 外部插件自动发现是为了避免继承全局环境中与本项目无关的插件；本项目测试只依赖 pytest 本身。`check_environment` 报告版本、解释器位置和设备，并打印实际 Shape：`[2, 3] @ [3, 4] → [2, 4]`，同时验证 CPU 反向传播。初始化验证结果：CPU 前向/反向均通过，pytest **1 passed**。
 
-`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **55 passed**，覆盖环境、Tokenizer、Embedding、单头及多头 Attention、FFN、Decoder Block 和最小 GPT 前向。
+`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **64 passed**，覆盖环境、Tokenizer、Embedding、单头及多头 Attention、FFN、Decoder Block、最小 GPT 前向、移位标签和损失。
 
 只观察双头注意力的数据流，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --multi-head-only`。脚本中的固定小表仅用于演示，并与实际模块输出核对。
 
@@ -54,6 +54,8 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 只查看 Decoder Block 的构造结果，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --block-only`。查看已实现 `forward` 的真实中间值，使用 `--block-forward-only`；此模式记录实际子模块调用，核对两次残差，不另行模拟未实现的计算。
 
 查看字符编号到 GPT 词表分数的完整前向，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --gpt-only`。固定随机种子 42，记录实际 Embedding、各 Block、最终 LayerNorm 和 LM Head 输出；使用默认初始化的未训练参数，不执行生成。
+
+查看移位标签与损失，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --loss-only`，显示完整编号、输入/标签、原始 logits、展平 Shape、正确字符概率、逐位置 loss 和平均 loss。概率仅用于展示，损失函数直接接收原始 logits；模型参数不更新。
 
 本次 Codex 沙箱内的 Anaconda Python 曾以 DLL 初始化错误 `0xC0000142` 退出，Git 克隆也曾遇到 TLS 凭据错误；已通过获准的沙箱外执行完成检查与重试。这属于本次执行环境限制；普通本地终端可按上述命令验证。
 
@@ -88,7 +90,8 @@ mini-gpt-lab/
 │   ├── embeddings.py         # 已实现字符嵌入与学习式位置嵌入
 │   ├── attention.py          # 已实现多头因果自注意力
 │   ├── blocks.py             # 已实现 FFN 和 Pre-LN Decoder Block
-│   └── model.py              # 已实现最小 GPT 与 LM Head 前向
+│   ├── model.py              # 已实现最小 GPT 与 LM Head 前向
+│   └── losses.py             # 已实现移位标签与平均交叉熵
 ├── scripts/
 │   ├── __init__.py
 │   ├── check_environment.py  # 第 0 阶段环境验证
@@ -103,7 +106,8 @@ mini-gpt-lab/
 │   ├── test_attention.py     # 单头及多头数值、因果性、批量与梯度测试
 │   ├── test_ffn.py           # 非线性数值、逐位置独立性、参数共享与梯度测试
 │   ├── test_decoder_block.py # Pre-LN 数值、残差、因果性、批量与梯度测试
-│   └── test_model.py         # 词表分数、输出头数值、堆叠因果性、长度与梯度测试
+│   ├── test_model.py         # 词表分数、输出头数值、堆叠因果性、长度与梯度测试
+│   └── test_losses.py        # 移位、独立损失数值、非连续张量、极端分数与梯度测试
 ├── data/
 │   └── .gitkeep
 ├── docs/
@@ -134,4 +138,4 @@ mini-gpt-lab/
 
 建议第 1 天学习 Tokenizer 至 Decoder Block，第 2 天完成模型组合、短训练、生成和最后的 KV Cache；时间分配服从实际理解程度。每一行单独讲解、实现、打印关键 Shape、测试并记录，不一次性写完。耗时较长训练须先得到确认。
 
-当前完成课程第 7 章的 7.1–7.3 小节：模型构造、LM Head 与完整前向。等待学习者确认理解后，再学习 7.4 移位标签与 next-token loss；第 7 章尚未全部完成。学习记录见 [docs/learning_log.md](docs/learning_log.md)。
+当前完成课程第 7 章的实现与验证，包括模型构造、LM Head、完整前向、移位标签和 next-token loss。等待学习者确认理解后进入第 8 章微型 CPU 训练与无缓存生成。学习记录见 [docs/learning_log.md](docs/learning_log.md)。

@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from mini_gpt.model import MiniGPT
+from mini_gpt.losses import make_next_token_batch, next_token_loss
 
 
 @pytest.mark.parametrize("n_layer,batch_size,length", [(1, 1, 1), (2, 2, 3), (2, 1, 8)])
@@ -64,8 +65,10 @@ def test_model_preserves_batch_independence():
 def test_gradients_reach_embeddings_every_block_and_lm_head():
     torch.manual_seed(41)
     model = MiniGPT(4, 8, 8, 2, 2).to("cpu")
-    # 此标量只用于检查反向路径；本节尚未实现语言模型训练损失。
-    model(torch.tensor([[0, 1, 2], [3, 2, 0]], device="cpu")).square().mean().backward()
+    # 用真实的下一字符损失检查整个模型的反向路径，尚不更新参数。
+    token_ids = torch.tensor([[0, 1, 2, 3], [3, 2, 0, 1]], device="cpu")
+    inputs, targets = make_next_token_batch(token_ids)
+    next_token_loss(model(inputs), targets).backward()
     for parameter in model.parameters():
         assert parameter.grad is not None
         assert torch.isfinite(parameter.grad).all()

@@ -7,6 +7,7 @@ import torch
 from mini_gpt.attention import CausalSelfAttention
 from mini_gpt.blocks import DecoderBlock, FeedForward
 from mini_gpt.embeddings import TokenPositionEmbedding
+from mini_gpt.losses import make_next_token_batch, next_token_loss
 from mini_gpt.model import MiniGPT
 from mini_gpt.tokenizer import CharTokenizer
 
@@ -330,6 +331,52 @@ def trace_gpt_forward() -> None:
     print("以上是实际前向计算的原始分数，模型尚未训练。")
 
 
+def trace_next_token_loss() -> None:
+    """展示已完成的移位切片、真实模型分数和逐位置交叉熵。"""
+    torch.manual_seed(42)
+    tokenizer = CharTokenizer("abc ")
+    text = "cab a"
+    token_ids = torch.tensor([tokenizer.encode(text)], dtype=torch.long, device="cpu")
+    inputs, targets = make_next_token_batch(token_ids)
+    model = MiniGPT(tokenizer.vocab_size, 8, 8, 2, 2).to("cpu").eval()
+    print(f"\n下一字符损失数据流：完整文本 {text!r}，词表 {tokenizer.stoi}。")
+    print("完整长度 L=5；移位后的 B=1、T=4、C=8、H=2、V=4。")
+    print("固定随机种子 42，使用默认初始化的未训练参数。")
+
+    with torch.no_grad():
+        logits = model(inputs)
+        loss = next_token_loss(logits, targets)
+        # 概率只用于展示；实际损失函数接收上面的原始 logits。
+        probabilities = logits.softmax(dim=-1)
+        correct_probabilities = probabilities.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        # 用稳定的 log_softmax 展示每个位置的负对数概率。
+        position_losses = -logits.log_softmax(dim=-1).gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+
+    for name, value in (
+        ("1. 完整编号 [B,L]", token_ids),
+        ("2. 模型输入 input_ids [B,T]", inputs),
+        ("3. 对齐后的正确标签 targets [B,T]", targets),
+        ("4. 模型原始输出 logits [B,T,V]", logits),
+        ("5. 展平分数 [B*T,V]", logits.reshape(-1, tokenizer.vocab_size)),
+        ("6. 展平标签 [B*T]", targets.reshape(-1)),
+        ("7. 各字符概率 [B,T,V]", probabilities),
+        ("8. 正确字符的概率 [B,T]", correct_probabilities),
+        ("9. 每个位置的 loss [B,T]", position_losses),
+        ("10. next_token_loss 返回的平均 loss，标量", loss),
+    ):
+        show_tensor(name, value)
+
+    print("\n按位置对齐：loss = -log(正确字符的概率)")
+    for position in range(inputs.size(1)):
+        target_char = tokenizer.itos[targets[0, position].item()]
+        print(f"  位置 {position}：上下文 {text[:position + 1]!r} → 标签 {target_char!r}，"
+              f"概率 {correct_probabilities[0, position].item():.6f}，"
+              f"loss {position_losses[0, position].item():.6f}")
+    torch.testing.assert_close(loss, position_losses.mean())
+    print(f"\n核对通过：各位置 loss 的平均值 = next_token_loss = {loss.item():.6f}。")
+    print("本次只计算分数与损失，模型参数未更新。")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="观察已实现模块的数据流")
     mode = parser.add_mutually_exclusive_group()
@@ -338,7 +385,11 @@ def main() -> None:
     mode.add_argument("--block-only", action="store_true", help="只查看 DecoderBlock 初始化的模块与参数形状")
     mode.add_argument("--block-forward-only", action="store_true", help="只追踪已实现 DecoderBlock 的实际前向数据流")
     mode.add_argument("--gpt-only", action="store_true", help="只追踪字符编号到 GPT 词表分数的实际前向数据流")
+    mode.add_argument("--loss-only", action="store_true", help="只追踪移位标签、逐位置交叉熵与平均损失")
     args = parser.parse_args()
+    if args.loss_only:
+        trace_next_token_loss()
+        return
     if args.gpt_only:
         trace_gpt_forward()
         return
