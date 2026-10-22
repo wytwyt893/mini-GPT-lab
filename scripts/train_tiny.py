@@ -46,10 +46,15 @@ def train_loop(
         raise ValueError("训练步数必须为正数")
     losses = []
     for step in range(1, num_steps + 1):
-        # TODO 8.2.2：复用已完成的 train_step，得到本步 loss_value。
-        # TODO 8.2.2：将 loss_value 追加到 losses。
-        # TODO 8.2.2：在第 1 步、每 20 步、最后一步打印步数和 loss。
-        raise NotImplementedError("先填写重复训练与损失记录，再比较训练前后的生成结果")
+        # 在上一轮参数的基础上，再更新一次。
+        loss_value = train_step(model, optimizer, input_ids, targets)
+
+        # 保存本步的 loss，方便观察变化。
+        losses.append(loss_value)
+
+        # 打印第一步、每 20 步，以及最后一步。
+        if step == 1 or step % 20 == 0 or step == num_steps:
+            print(f"第 {step}/{num_steps} 步，loss={loss_value:.6f}")
     return losses
 
 
