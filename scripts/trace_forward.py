@@ -7,6 +7,7 @@ import torch
 from mini_gpt.attention import CausalSelfAttention
 from mini_gpt.blocks import DecoderBlock, FeedForward
 from mini_gpt.embeddings import TokenPositionEmbedding
+from mini_gpt.model import MiniGPT
 from mini_gpt.tokenizer import CharTokenizer
 
 
@@ -283,6 +284,52 @@ def trace_decoder_block_forward() -> None:
     print("\n核对通过：实际 forward 中，h = X + Attention 更新量，Y = h + FFN 更新量。")
 
 
+def trace_gpt_forward() -> None:
+    """只记录实际 MiniGPT 前向调用，贯通字符编号、嵌入、各层与词表分数。"""
+    torch.manual_seed(42)
+    tokenizer = CharTokenizer("abc ")
+    text = "cab a"
+    token_ids = torch.tensor([tokenizer.encode(text)], dtype=torch.long, device="cpu")
+    model = MiniGPT(tokenizer.vocab_size, 8, 8, 2, 2).to("cpu").eval()
+    print(f"\n最小 GPT 实际前向：输入 {text!r}，词表 {tokenizer.stoi}。")
+    print("B=1、T=5、C=8、H=2、D=4、V=4，堆叠 2 个 Decoder Block。")
+    print("固定随机种子 42，使用默认初始化的未训练参数。")
+    values = {}
+
+    def record(name):
+        def hook(module, inputs, output):
+            values[name] = output.detach().clone()
+        return hook
+
+    layers = [
+        ("字符查表结果 [B,T,C]", model.embedding.token_embedding),
+        ("位置查表结果 [T,C]", model.embedding.position_embedding),
+        ("Embedding 相加结果 [B,T,C]", model.embedding),
+    ]
+    layers.extend((f"第 {index} 个 Block 输出 [B,T,C]", block)
+                  for index, block in enumerate(model.blocks))
+    layers.extend([
+        ("最终 LayerNorm 输出 [B,T,C]", model.ln_f),
+        ("LM Head 输出 logits [B,T,V]", model.lm_head),
+    ])
+    handles = [module.register_forward_hook(record(name)) for name, module in layers]
+    try:
+        with torch.no_grad():
+            logits = model(token_ids)
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    show_tensor("字符编号 [B,T]", token_ids)
+    for name, module in layers:
+        show_tensor(name, values[name])
+    torch.testing.assert_close(logits, values["LM Head 输出 logits [B,T,V]"])
+    print("\n最后一个输入位置对应的下一字符分数：")
+    for token_id, score in enumerate(logits[0, -1]):
+        print(f"  字符 {tokenizer.itos[token_id]!r}，编号 {token_id}，logit = {score.item():.6f}")
+    print("以上是实际前向计算的原始分数，模型尚未训练。")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="观察已实现模块的数据流")
     mode = parser.add_mutually_exclusive_group()
@@ -290,7 +337,11 @@ def main() -> None:
     mode.add_argument("--ffn-only", action="store_true", help="只打印 FFN 数据流")
     mode.add_argument("--block-only", action="store_true", help="只查看 DecoderBlock 初始化的模块与参数形状")
     mode.add_argument("--block-forward-only", action="store_true", help="只追踪已实现 DecoderBlock 的实际前向数据流")
+    mode.add_argument("--gpt-only", action="store_true", help="只追踪字符编号到 GPT 词表分数的实际前向数据流")
     args = parser.parse_args()
+    if args.gpt_only:
+        trace_gpt_forward()
+        return
     if args.block_forward_only:
         trace_decoder_block_forward()
         return
