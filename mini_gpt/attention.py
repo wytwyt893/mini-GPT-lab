@@ -3,6 +3,8 @@
 import torch
 from torch import nn
 
+from mini_gpt.cache import KVCache, append_kv_cache
+
 
 class CausalSelfAttention(nn.Module):
     """手写多头因果自注意力，输入和输出均为 [B,T,C]。
@@ -36,8 +38,20 @@ class CausalSelfAttention(nn.Module):
         self.out_proj = nn.Linear(n_embd, n_embd)
         # 输出投影在合并各头后使用，维度同样为 C -> C。
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """输入为含位置信息的浮点向量 [B,T,C]，输出为上下文表示 [B,T,C]。"""
+    def forward(
+        self,
+        x: torch.Tensor,
+        past_kv: KVCache | None = None,
+        use_cache: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, KVCache]:
+        """当前输入 [B,T,C]；默认返回同形状输出。
+
+        缓存练习目标：past_kv 保存历史 [B,H,P,D]；use_cache=True 时返回
+        (当前输出, 更新后的 K/V)，新缓存长度为 P+T。
+        """
+        # 完成下面 A/B/C 三处 TODO 后，再移除这两行占位检查。
+        if use_cache or past_kv is not None:
+            raise NotImplementedError("先完成 Attention 的缓存追加、位置遮罩与缓存返回")
         # 用三个线性层分别计算 Q、K、V。
         B, T, C = x.shape
 
@@ -70,6 +84,9 @@ class CausalSelfAttention(nn.Module):
         k = k.reshape(B, T, self.n_head, self.head_dim).transpose(1, 2)
         v = v.reshape(B, T, self.n_head, self.head_dim).transpose(1, 2)
 
+        # TODO 9.1.2 A：取得历史长度 past_length；无历史时为 0。
+        # TODO 9.1.2 A：调用 append_kv_cache，让 k、v 包含历史和当前位置。
+
         # 计算缩放后的 QK 转置乘积。
         """
         计算注意力分数：scores = QK^T / sqrt(d_k)，这里为矩阵乘法。
@@ -97,6 +114,7 @@ class CausalSelfAttention(nn.Module):
          [0.2689, 0.7311, 0.0000],
          [0.0900, 0.2447, 0.6652]]
         """
+        # TODO 9.1.2 B：将下面的方形遮罩替换为 [T,past_length+T] 的位置比较遮罩。
         mask = torch.tril(
             torch.ones(T, T, dtype=torch.bool, device=x.device)
         )
@@ -131,4 +149,6 @@ class CausalSelfAttention(nn.Module):
         reshape 后为 [B,T,C] = [B,3,4]，因为 C = H * D = 2 * 2 = 4。
         """
         context = context.transpose(1, 2).reshape(B, T, C)
-        return self.out_proj(context)
+        output = self.out_proj(context)
+        # TODO 9.1.2 C：use_cache=True 时返回 output 和当前全部 (k,v)。
+        return output
