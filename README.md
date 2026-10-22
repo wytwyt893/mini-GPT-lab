@@ -2,7 +2,7 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：已完成基础 GPT、无缓存生成、微型 CPU 训练和 K/V 缓存追加工具。** 当前共 83 项测试通过；第 9 章进行中，Attention 的缓存路径仍为练习骨架，模型缓存与生成尚未接通。
+**当前状态：已完成基础 GPT、无缓存生成、微型 CPU 训练和 Attention 层 KV Cache。** 当前共 91 项测试通过；第 9 章进行中，位置偏移、各层缓存传递与缓存生成尚未接通。
 
 学习方式：导师在聊天中解释概念和小段代码，由学习者填写并验证；可在同一轮推进几个相关小节，不一次性替学习者实现完整模块。已有教学 Markdown 保留为历史材料，后续指导在聊天中进行，阶段结果简要记入学习记录。
 
@@ -45,9 +45,11 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 
 关闭 pytest 外部插件自动发现是为了避免继承全局环境中与本项目无关的插件；本项目测试只依赖 pytest 本身。`check_environment` 报告版本、解释器位置和设备，并打印实际 Shape：`[2, 3] @ [3, 4] → [2, 4]`，同时验证 CPU 反向传播。初始化验证结果：CPU 前向/反向均通过，pytest **1 passed**。
 
-`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **83 passed**，覆盖基础 GPT、训练、无缓存生成和独立 K/V 追加；不把待填写的 Attention 缓存路径计作通过。
+`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **91 passed**，覆盖基础 GPT、训练、无缓存生成、K/V 追加和缓存 Attention；整模型缓存生成尚未实现，不计作通过。
 
 只观察双头注意力的数据流，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --multi-head-only`。脚本中的固定小表仅用于演示，并与实际模块输出核对。
+
+查看已完成 Attention 的缓存数据流，运行 `.\.venv\Scripts\python.exe -m scripts.compare_cache --attention-only`。实际调用依次处理 3、1、2 个新位置，K/V 长度依次为 3、4、6；分段输出与整段输出的最大误差约为 `5.96e-8`。此入口只比较 Attention，不代表整个 GPT 已支持缓存生成。
 
 只观察 FFN，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --ffn-only`，查看升维、GELU、降维及逐位置独立性验证。
 
@@ -92,18 +94,18 @@ mini-gpt-lab/
 │   ├── __init__.py
 │   ├── tokenizer.py          # 已实现字符级编码与解码
 │   ├── embeddings.py         # 已实现字符嵌入与学习式位置嵌入
-│   ├── attention.py          # 已实现多头因果自注意力
+│   ├── attention.py          # 已实现多头因果自注意力及该层 KV Cache
 │   ├── blocks.py             # 已实现 FFN 和 Pre-LN Decoder Block
 │   ├── model.py              # 已实现 GPT 前向、LM Head 与无缓存贪心生成
 │   ├── losses.py             # 已实现移位标签与平均交叉熵
-│   └── cache.py              # 已实现 K/V 时间维追加，尚待 Attention 接入
+│   └── cache.py              # 已实现 K/V 时间维追加，已接入 Attention
 ├── scripts/
 │   ├── __init__.py
 │   ├── check_environment.py  # 第 0 阶段环境验证
 │   ├── trace_forward.py      # 已实现模块的真实数值与 Shape 追踪
 │   ├── train_tiny.py         # 已实现单步与短循环训练、训练前后生成对比
 │   ├── generate.py           # 未训练模型生成入口与逐轮追踪
-│   └── compare_cache.py      # 当前占位
+│   └── compare_cache.py      # Attention 缓存追踪；整模型对比尚未接通
 ├── tests/
 │   ├── test_environment.py   # CPU 前向/反向 smoke test
 │   ├── test_tokenizer.py     # 字符级 Tokenizer 测试
@@ -115,7 +117,7 @@ mini-gpt-lab/
 │   ├── test_losses.py        # 移位、独立损失数值、非连续张量、极端分数与梯度测试
 │   ├── test_generate.py      # 生成回填、窗口裁剪、批量、边界与真实生成测试
 │   ├── test_training.py      # 参数更新、梯度清理、循环记录及优化器状态延续测试
-│   └── test_cache.py         # 首次缓存、追加顺序、批量/头维度与输入边界测试
+│   └── test_cache.py         # K/V 追加、缓存 Attention 一致性与新增位置投影测试
 ├── data/
 │   └── .gitkeep
 ├── docs/
@@ -146,4 +148,4 @@ mini-gpt-lab/
 
 建议第 1 天学习 Tokenizer 至 Decoder Block，第 2 天完成模型组合、短训练、生成和最后的 KV Cache；时间分配服从实际理解程度。每一行单独讲解、实现、打印关键 Shape、测试并记录，不一次性写完。耗时较长训练须先得到确认。
 
-当前完成课程 9.1.1 缓存追加工具，正在填写 9.1.2 Attention 的缓存拼接、历史位置遮罩与返回值。`past_kv` 和 `use_cache` 接口已准备好，缓存路径显式抛出 `NotImplementedError`，默认无缓存调用保持可用。后续再接入每层缓存、位置偏移、生成和一致性验证。学习记录见 [docs/learning_log.md](docs/learning_log.md)。
+当前完成课程 9.1.1 缓存追加工具与 9.1.2 Attention 缓存接入。默认调用仍返回 Tensor，`use_cache=True` 返回当前输出和累积 K/V；支持一次追加多个位置的长方形因果遮罩。后续先处理位置 Embedding 的历史偏移，再接通 Block/GPT 各层缓存、缓存生成和整模型一致性验证。学习记录见 [docs/learning_log.md](docs/learning_log.md)。

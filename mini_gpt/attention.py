@@ -46,12 +46,9 @@ class CausalSelfAttention(nn.Module):
     ) -> torch.Tensor | tuple[torch.Tensor, KVCache]:
         """当前输入 [B,T,C]；默认返回同形状输出。
 
-        缓存练习目标：past_kv 保存历史 [B,H,P,D]；use_cache=True 时返回
+        past_kv 保存历史 [B,H,P,D]；use_cache=True 时返回
         (当前输出, 更新后的 K/V)，新缓存长度为 P+T。
         """
-        # 完成下面 A/B/C 三处 TODO 后，再移除这两行占位检查。
-        if use_cache or past_kv is not None:
-            raise NotImplementedError("先完成 Attention 的缓存追加、位置遮罩与缓存返回")
         # 用三个线性层分别计算 Q、K、V。
         B, T, C = x.shape
 
@@ -84,8 +81,11 @@ class CausalSelfAttention(nn.Module):
         k = k.reshape(B, T, self.n_head, self.head_dim).transpose(1, 2)
         v = v.reshape(B, T, self.n_head, self.head_dim).transpose(1, 2)
 
-        # TODO 9.1.2 A：取得历史长度 past_length；无历史时为 0。
-        # TODO 9.1.2 A：调用 append_kv_cache，让 k、v 包含历史和当前位置。
+        # P：历史缓存包含多少个位置。
+        past_length = 0 if past_kv is None else past_kv[0].size(2)
+
+        # K/V 包含历史和当前的位置，Q 仍然只保留当前的位置。
+        k, v = append_kv_cache(k, v, past_kv)
 
         # 计算缩放后的 QK 转置乘积。
         """
@@ -114,10 +114,16 @@ class CausalSelfAttention(nn.Module):
          [0.2689, 0.7311, 0.0000],
          [0.0900, 0.2447, 0.6652]]
         """
-        # TODO 9.1.2 B：将下面的方形遮罩替换为 [T,past_length+T] 的位置比较遮罩。
-        mask = torch.tril(
-            torch.ones(T, T, dtype=torch.bool, device=x.device)
-        )
+        # 遮罩为 [T,P+T]，允许当前查询读取历史和自身之前的位置。
+        # 当前查询对应的完整序列位置：P、P+1、……。
+        query_positions = past_length + torch.arange(T, device=x.device)
+
+        # 历史与当前全部键的位置：0、1、……。
+        key_positions = torch.arange(k.size(2), device=x.device)
+
+        # 允许关注：键的位置不超过当前查询的位置。
+        mask = key_positions.unsqueeze(0) <= query_positions.unsqueeze(1)
+
         scores = scores.masked_fill(~mask, float("-inf")) # ~mask分数改成负无穷，表示未来位置
         weights = torch.softmax(scores, dim=-1)
 
@@ -150,5 +156,8 @@ class CausalSelfAttention(nn.Module):
         """
         context = context.transpose(1, 2).reshape(B, T, C)
         output = self.out_proj(context)
-        # TODO 9.1.2 C：use_cache=True 时返回 output 和当前全部 (k,v)。
+
+        if use_cache:
+            return output, (k, v)
+
         return output
