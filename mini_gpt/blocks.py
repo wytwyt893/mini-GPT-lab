@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from mini_gpt.attention import CausalSelfAttention
-
+from mini_gpt.cache import KVCache
 
 class FeedForward(nn.Module):
     """每个位置使用同一组参数，完成 C -> 4C -> C 的非线性变换。
@@ -53,19 +53,37 @@ class DecoderBlock(nn.Module):
         # 建立前馈模块 self.ffn，复用上面的 FeedForward。
         self.ffn = FeedForward(n_embd)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """使用 Pre-LN：先归一化，再计算子层，最后加回原来的表示。"""
-        # 归一化后送入 Attention，计算上下文更新量。
+    def forward(
+    self,
+    x: torch.Tensor,
+    past_kv: KVCache | None = None,
+    use_cache: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, KVCache]:
+        """输入输出均为 [B,T,C]；可同时返回本层的累积 K/V。"""
         attn_input = self.ln_1(x)
-        attn_update = self.attn(attn_input)
 
-        # 第一次残差：加回原始输入。
+        # 把本层历史缓存交给 Attention。
+        attn_result = self.attn(
+            attn_input,
+            past_kv=past_kv,
+            use_cache=use_cache,
+        )
+
+        # Attention 在启用缓存时返回两个结果。
+        if use_cache:
+            attn_update, present_kv = attn_result
+        else:
+            attn_update = attn_result
+
+        # 第一次残差只更新本次输入的位置。
         h = x + attn_update
 
-        # 对 h 归一化，再计算 FFN 更新量。
         ffn_input = self.ln_2(h)
         ffn_update = self.ffn(ffn_input)
 
-        # 第二次残差：加回第一次更新后的 h。
+        # 第二次残差同样保持 [B,T,C]。
         y = h + ffn_update
+
+        if use_cache:
+            return y, present_kv
         return y

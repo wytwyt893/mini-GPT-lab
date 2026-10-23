@@ -25,21 +25,29 @@ class TokenPositionEmbedding(nn.Module):
         # 建立位置嵌入表 self.position_embedding，形状为 [block_size, C]。
         self.position_embedding = nn.Embedding(block_size, n_embd)
 
-    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        """输入为 torch.long 编号张量 [B, T]，输出为浮点张量 [B, T, C]。
-           token_ids：字符编号张量，形状为 [B, T]，数据类型为 torch.long
-        """
-        # 取得序列长度 T，并检查是否超过 block_size。
+    def forward(
+        self,
+        token_ids: torch.Tensor,
+        position_offset: int = 0,
+    ) -> torch.Tensor:
+        """输入 [B,T]，返回 [B,T,C]；位置编号从历史长度开始。"""
         B, T = token_ids.shape
-        if T > self.block_size:
+
+        if position_offset < 0:
+            raise ValueError("位置偏移不能为负数")
+        if position_offset + T > self.block_size:
             raise ValueError("输入序列超过最大上下文长度")
 
-        # 查字符编号嵌入表，取得 [B, T, C]。
+        # 字符编号仍然只查询本次输入。
         token_vectors = self.token_embedding(token_ids)
 
-        # 为每个位置构造编号，再查位置嵌入表。
-        position_ids = torch.arange(T, dtype=torch.long, device=token_ids.device)
+        # 位置编号从 P 开始，依次为 P、P+1、……、P+T-1。
+        position_ids = torch.arange(
+            position_offset,
+            position_offset + T,
+            dtype=torch.long,
+            device=token_ids.device,
+        )
         position_vectors = self.position_embedding(position_ids)
 
-        # 将字符向量与位置向量相加。
         return token_vectors + position_vectors
