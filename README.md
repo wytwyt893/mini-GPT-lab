@@ -2,7 +2,7 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：本轮基础学习已收尾。** 已贯通字符输入、GPT 前向、微型 CPU 训练、字符生成与整模型 KV Cache，共 99 项测试通过；后续学习按学习者安排继续。
+**当前状态：本轮基础学习已收尾。** 已贯通字符输入、GPT 前向、微型 CPU 训练、字符生成与整模型 KV Cache，提供零基础终端数据流导览，共 110 项测试通过；后续学习按学习者安排继续。
 
 学习方式：导师在聊天中解释概念和小段代码，由学习者填写并验证；可在同一轮推进几个相关小节，不一次性替学习者实现完整模块。已有教学 Markdown 保留为历史材料，后续指导在聊天中进行，阶段结果简要记入学习记录。
 
@@ -45,7 +45,18 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 
 关闭 pytest 外部插件自动发现是为了避免继承全局环境中与本项目无关的插件；本项目测试只依赖 pytest 本身。`check_environment` 报告版本、解释器位置和设备，并打印实际 Shape：`[2, 3] @ [3, 4] → [2, 4]`，同时验证 CPU 反向传播。初始化验证结果：CPU 前向/反向均通过，pytest **1 passed**。
 
-`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **99 passed**，覆盖基础 GPT、训练、生成、K/V 追加、位置偏移与 Block/GPT 缓存；包含窗口滑动、超长提示词和零步生成的结果一致性验证。
+`PYTHONUTF8=1` 避免本次 Windows 终端捕获中文时出现乱码。当前测试结果为 **110 passed**，覆盖基础 GPT、训练、生成、K/V 追加、位置偏移、Block/GPT 缓存和终端导览的数据真实性；包含窗口滑动、超长提示词和零步生成的结果一致性验证。
+
+从零开始观察完整字符生成数据流，运行：
+
+```powershell
+$env:PYTHONUTF8 = '1'
+.\.venv\Scripts\python.exe -m scripts.baby_flow
+```
+
+默认从 `"cab"` 生成 2 个字符，完整输出为 `"cab c"`。使用固定种子 42、CPU、默认初始化的未训练模型：1 个 Block、2 个头、隐藏维度 4。第一轮完整展开内部计算，后续轮次简洁展示回填；每一站标注白话解释、负责文件、模块、实际数值及 Shape。数据采集自现有 forward/generate 的执行，包含被后续赋值覆盖前的 Attention 分数等中间值，不另写一套生成计算。
+
+加 `--all-rounds` 可展开每一轮；加 `--cache` 可观察真实缓存路径。例如 `.\.venv\Scripts\python.exe -m scripts.baby_flow --cache --all-rounds`。也可通过 `--prompt "ab" --max-new-tokens 3` 调整输入与生成长度；字符限于 `a、b、c、空格`。导览自动核对嵌入相加、两次残差、注意力归一化与遮罩、字符回填和最终返回值；不执行训练。
 
 只观察双头注意力的数据流，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --multi-head-only`。脚本中的固定小表仅用于演示，并与实际模块输出核对。
 
@@ -107,6 +118,7 @@ mini-gpt-lab/
 │   ├── __init__.py
 │   ├── check_environment.py  # 第 0 阶段环境验证
 │   ├── trace_forward.py      # 已实现模块的真实数值与 Shape 追踪
+│   ├── baby_flow.py          # 零基础字符到字符导览：白话、文件、模块、实际张量
 │   ├── train_tiny.py         # 已实现单步与短循环训练、训练前后生成对比
 │   ├── generate.py           # 未训练模型生成入口与逐轮追踪
 │   └── compare_cache.py      # Attention 与整模型缓存的真实追踪和对比
@@ -122,7 +134,8 @@ mini-gpt-lab/
 │   ├── test_generate.py      # 生成回填、窗口裁剪、批量、边界与真实生成测试
 │   ├── test_training.py      # 参数更新、梯度清理、循环记录及优化器状态延续测试
 │   ├── test_cache.py         # K/V 追加、缓存 Attention 一致性与新增位置投影测试
-│   └── test_model_cache.py   # 位置偏移、Block/GPT 缓存与窗口边界生成一致性
+│   ├── test_model_cache.py   # 位置偏移、Block/GPT 缓存与窗口边界生成一致性
+│   └── test_baby_flow.py     # 导览数据真实性、缓存观察及异常清理
 ├── data/
 │   └── .gitkeep
 ├── docs/
