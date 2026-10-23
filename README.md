@@ -2,7 +2,7 @@
 
 用 Python + PyTorch 从零实现最小 Decoder-only GPT 的两日学习项目。每次只推进一个模块，先理解并测试当前模块，再由学习者确认进入下一模块。
 
-**当前状态：已贯通字符输入、GPT 前向、微型 CPU 训练、字符生成与整模型 KV Cache。** 当前共 99 项测试通过；第 9 章实现与一致性验证完成，正在理解位置偏移、逐层缓存和增量生成的数据流。
+**当前状态：本轮基础学习已收尾。** 已贯通字符输入、GPT 前向、微型 CPU 训练、字符生成与整模型 KV Cache，共 99 项测试通过；后续学习按学习者安排继续。
 
 学习方式：导师在聊天中解释概念和小段代码，由学习者填写并验证；可在同一轮推进几个相关小节，不一次性替学习者实现完整模块。已有教学 Markdown 保留为历史材料，后续指导在聊天中进行，阶段结果简要记入学习记录。
 
@@ -49,7 +49,7 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 
 只观察双头注意力的数据流，可运行 `.\.venv\Scripts\python.exe -m scripts.trace_forward --multi-head-only`。脚本中的固定小表仅用于演示，并与实际模块输出核对。
 
-查看已完成 Attention 的缓存数据流，运行 `.\.venv\Scripts\python.exe -m scripts.compare_cache --attention-only`。实际调用依次处理 3、1、2 个新位置，K/V 长度依次为 3、4、6；分段输出与整段输出的最大误差约为 `5.96e-8`。此入口只比较 Attention，不代表整个 GPT 已支持缓存生成。
+查看已完成 Attention 的缓存数据流，运行 `.\.venv\Scripts\python.exe -m scripts.compare_cache --attention-only`。实际调用依次处理 3、1、2 个新位置，K/V 长度依次为 3、4、6；分段输出与整段输出的最大误差约为 `5.96e-8`。本模式仅比较 Attention 层，整模型比较使用下述默认入口。
 
 整模型缓存对比使用 `.\.venv\Scripts\python.exe -m scripts.compare_cache`。真实前向钩子记录同一未训练模型从 `"cab"` 生成 7 个字符：无缓存输入长度为 `[3,4,5,6,7,8,8]`，缓存输入长度为 `[3,1,1,1,1,1,8]`；最后一轮重建已滑动窗口的缓存。逐轮最后位置 logits 最大误差约 `1.19e-7`，两条路径均生成 `"cabc bcabc"`。这验证计算一致性，没有进行速度基准测试或语言质量评估。
 
@@ -153,4 +153,4 @@ mini-gpt-lab/
 
 建议第 1 天学习 Tokenizer 至 Decoder Block，第 2 天完成模型组合、短训练、生成和最后的 KV Cache；时间分配服从实际理解程度。每一行单独讲解、实现、打印关键 Shape、测试并记录，不一次性写完。耗时较长训练须先得到确认。
 
-当前完成课程第 9 章的缓存追加、Attention 接入、位置偏移、Block/GPT 逐层传递与缓存生成。默认前向与原训练接口保持可用；缓存前向支持多 token 片段，生成在窗口滑动后重建缓存。实现与测试完成后继续在聊天中理解数据流，等待学习者安排后续内容。学习记录见 [docs/learning_log.md](docs/learning_log.md)。
+当前完成课程第 9 章的缓存追加、Attention 接入、位置偏移、Block/GPT 逐层传递与缓存生成。默认前向与原训练接口保持可用；缓存前向支持多 token 片段，生成在窗口滑动后重建缓存。学习者于 2026-10-23 要求本轮收尾，在聊天中梳理文件与完整数据流，后续内容等待另行安排。学习记录见 [docs/learning_log.md](docs/learning_log.md)。

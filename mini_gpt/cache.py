@@ -16,7 +16,7 @@ def append_kv_cache(
 
     P 为历史长度，T 为当前输入长度，返回两份 [B,H,P+T,D]。
     首次调用 past_kv=None 时，当前 K/V 就是第一份缓存。
-    此函数只追加张量，Attention 的分数与遮罩在后续小节接入。
+    此函数由 Attention 调用来追加张量，分数与因果遮罩在 Attention 中计算。
     """
     if k_new.ndim != 4 or k_new.shape != v_new.shape:
         raise ValueError("当前 K 和 V 必须是形状相同的四维张量 [B,H,T,D]")
